@@ -18,6 +18,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # fork 没有上游 tag:拉上游 tag,用 fork 中最新的上游提交算版本号(如 v8.0.51)
+      - name: Version info
+        run: |
+          git fetch --tags --force https://github.com/router-for-me/CLIProxyAPI.git +refs/heads/main:refs/remotes/upstream/main
+          base=$(git merge-base HEAD upstream/main)
+          echo "VERSION=$(git describe --tags --match 'v*' "$base")" >> "$GITHUB_ENV"
+          echo "COMMIT=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          echo "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -36,6 +47,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest
+            type=raw,value=${{ env.VERSION }}
             type=sha,format=short
 
       - name: Build and push (amd64)
@@ -48,3 +60,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            COMMIT=${{ env.COMMIT }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
